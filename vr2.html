@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>My Quest 2 VR World</title>
+    <!-- A-Frame Library -->
+    <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+    <!-- Environment Component for easy scenery -->
+    <script src="https://unpkg.com/aframe-environment-component@1.3.2/dist/aframe-environment-component.min.js"></script>
+    
+    <script>
+      // Component for NPC Dialogue
+      AFRAME.registerComponent('npc-dialogue', {
+        schema: {
+          messages: {type: 'array', default: ["Hello!", "Nice weather today.", "Good luck on your quest!"]},
+          name: {type: 'string', default: "NPC"}
+        },
+        init: function () {
+          this.index = 0;
+          this.textEl = this.el.querySelector('.dialogue-text');
+          
+          // When the player clicks/triggers the NPC
+          this.el.addEventListener('click', () => {
+            this.index = (this.index + 1) % this.data.messages.length;
+            this.textEl.setAttribute('value', this.data.messages[this.index]);
+            // Visual feedback: small bounce
+            this.el.setAttribute('animation', 'property: position; dir: alternate; dur: 100; iterations: 2; to: ' + 
+                                   this.el.object3D.position.x + ' ' + (this.el.object3D.position.y + 0.1) + ' ' + this.el.object3D.position.z);
+          });
+        }
+      });
+
+      // Component for basic object interaction
+      AFRAME.registerComponent('interact-color', {
+        init: function () {
+          this.el.addEventListener('click', () => {
+            const randomColor = '#' + Math.floor(Math.random()*16777215).toString(16);
+            this.el.setAttribute('color', randomColor);
+          });
+        }
+      });
+    </script>
+  </head>
+  <body>
+    <a-scene cursor="rayOrigin: mouse" raycaster="objects: .interactable">
+      
+      <!-- Assets -->
+      <a-assets>
+        <!-- You can link 3D models here later -->
+      </a-assets>
+
+      <!-- Environment -->
+      <a-entity environment="preset: forest; dressingAmount: 500"></a-entity>
+
+      <!-- Player / Camera Rig -->
+      <a-entity id="rig" position="0 0 4">
+        <a-camera>
+          <!-- Backup cursor for desktop testing -->
+          <a-cursor fuse="false" raycaster="objects: .interactable" color="white"></a-cursor>
+        </a-camera>
+        <!-- Quest 2 Controllers -->
+        <a-entity oculus-touch-controls="hand: left"></a-entity>
+        <a-entity oculus-touch-controls="hand: right" raycaster="objects: .interactable; far: 10; showLine: true" line="color: red; opacity: 0.5"></a-entity>
+      </a-entity>
+
+      <!-- NPC 1: The Guide -->
+      <a-entity class="interactable" npc-dialogue="name: Guide; messages: Welcome traveler!, I am the Forest Guide., Click me to see more text., GitHub is great for hosting VR!, See that cube? Give it a click." 
+                position="-2 1 -2" geometry="primitive: cylinder" material="color: #4CC3D9">
+        <a-text value="The Guide" position="0 1.5 0" align="center" width="4"></a-text>
+        <a-text class="dialogue-text" value="Click me!" position="0 1.2 0" align="center" width="3" color="#FFF"></a-text>
+        <a-entity geometry="primitive: sphere" position="0 1 0" material="color: #FFC65D"></a-entity> <!-- Head -->
+      </a-entity>
+
+      <!-- NPC 2: The Grumpy Robot -->
+      <a-entity class="interactable" npc-dialogue="name: Bot; messages: ERROR 404., Go away., I'm busy standing here., Fine... have a nice day." 
+                position="2 0.75 -2" geometry="primitive: box" material="color: #7BC8A4">
+        <a-text value="Robot" position="0 1 0" align="center" width="4"></a-text>
+        <a-text class="dialogue-text" value="Zzzzt..." position="0 0.7 0" align="center" width="3" color="#FF0000"></a-text>
+      </a-entity>
+
+      <!-- Interactive Object 1: Color Changing Cube -->
+      <a-box class="interactable" interact-color position="-1 0.5 1" rotation="0 45 0" color="#4CC3D9" shadow>
+        <a-text value="Click to change color" position="0 0.6 0" align="center" width="2"></a-text>
+      </a-box>
+
+      <!-- Interactive Object 2: Spinning Sphere -->
+      <a-sphere class="interactable" position="1 1 1" radius="0.5" color="#EF2D5E" shadow
+                animation="property: rotation; to: 0 360 0; loop: true; dur: 3000">
+        <a-text value="Spinning" position="0 0.7 0" align="center" width="2"></a-text>
+      </a-sphere>
+
+    </a-scene>
+  </body>
+</html>
