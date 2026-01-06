@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <title>Architect OS: Unified Alpha</title>
+    <title>Architect OS: Unified Alpha (Stable)</title>
     <!-- Core VR Frameworks -->
     <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/gh/donmccurdy/aframe-extras@v7.2.0/dist/aframe-extras.min.js"></script>
@@ -18,7 +18,6 @@
           stats: { aggression: 0.5, empathy: 0.5 }
         },
 
-        // TTS Gateway
         speak: function(text, pitch = 1.0) {
           if ('speechSynthesis' in window) {
             const utter = new SpeechSynthesisUtterance(text);
@@ -27,31 +26,32 @@
             window.speechSynthesis.cancel();
             window.speechSynthesis.speak(utter);
           }
-          document.querySelector('#hud-text').setAttribute('value', text);
+          const hud = document.querySelector('#hud-text');
+          if(hud) hud.setAttribute('value', text);
         },
 
-        // Persistence Hook
         saveState: function() {
-          const data = JSON.stringify(this.state.stats);
-          localStorage.setItem('architect_save', data);
-          this.speak("System state committed to local memory.");
+          try {
+            const data = JSON.stringify(this.state.stats);
+            localStorage.setItem('architect_save', data);
+            this.speak("System state committed to local memory.");
+          } catch(e) {
+            console.warn("Storage blocked by browser tracking prevention.");
+          }
         }
       };
 
-      // --- COMPONENT: WRIST GAUNTLET UI ---
       AFRAME.registerComponent('wrist-os', {
         init: function () {
           this.el.setAttribute('visible', false);
-          this.camera = document.querySelector('#camera');
         },
         tick: function () {
           const rot = this.el.object3D.rotation;
-          const isFacing = Math.abs(rot.z) > 1.2; // Detect wrist flip
+          const isFacing = Math.abs(rot.z) > 1.2; 
           this.el.setAttribute('visible', isFacing);
         }
       });
 
-      // --- COMPONENT: HOST BRAIN & INITIALIZATION ---
       const DIALOGUE_TREE = {
         "boot": {
           text: "System Online. Memory flush complete. Awaiting drive assignment.",
@@ -70,11 +70,12 @@
           this.el.addEventListener('click', () => {
             window.ArchitectOS.state.activeHost = this.el;
             window.ArchitectOS.speak("Unit Linked. Initializing Diagnostic.");
+            // Set visuals to linked state
+            this.el.setAttribute('material', 'emissive', '#222');
           });
         }
       });
 
-      // --- COMPONENT: CONSTRUCT LOADER ---
       AFRAME.registerComponent('construct-engine', {
         spawnArray: function() {
           for (let i = 0; i < 6; i++) {
@@ -90,32 +91,44 @@
           window.ArchitectOS.speak("Asset arrays loaded.");
         }
       });
+
+      // Desktop Debug Tool (Press M to see menu on PC)
+      window.addEventListener('keydown', (e) => {
+        if (e.key === 'm') {
+          const tablet = document.querySelector('[wrist-os]');
+          const isVisible = tablet.getAttribute('visible');
+          tablet.setAttribute('visible', !isVisible);
+          tablet.setAttribute('position', '0 0 -0.5'); 
+          tablet.setAttribute('rotation', '0 0 0');
+        }
+      });
     </script>
   </head>
 
   <body>
-    <a-scene physics="debug: false">
+    <a-scene shadow="type: pcfsoft">
       <a-assets>
-        <img id="tablet-ui" src="https://i.imgur.com/8AD6D1O.png">
+        <!-- Added crossorigin="anonymous" to fix the imgur warning -->
+        <img id="tablet-ui" src="https://i.imgur.com/8AD6D1O.png" crossorigin="anonymous">
         <a-mixin id="btn" geometry="primitive: plane; width: 0.26; height: 0.06" material="color: #111; opacity: 0.9" text="align: center; width: 0.5; color: #0FF"></a-mixin>
       </a-assets>
 
-      <!-- THE CONSTRUCT (WHITE ROOM) -->
-      <a-entity id="env" environment="preset: none; backgroundColor: #ffffff; grid: cross; gridColor: #333"></a-entity>
+      <!-- Fixed environment properties (removed unknown backgroundColor) -->
+      <a-entity id="env" environment="preset: none; skyType: color; skyColor: #ffffff; grid: cross; gridColor: #333"></a-entity>
 
       <!-- PLAYER RIG -->
       <a-entity id="rig" movement-controls="speed: 0.15">
         <a-entity id="camera" camera position="0 1.6 0" look-controls>
+          <!-- HUD / Subtitles -->
           <a-text id="hud-text" value="ARCHITECT CONNECTED" position="0 -0.5 -1.2" align="center" width="1.5" color="cyan" font="monoid"></a-text>
         </a-entity>
 
-        <!-- LEFT HAND: THE GAUNTLET -->
+        <!-- LEFT HAND (The Gauntlet) -->
         <a-entity id="leftHand" oculus-touch-controls="hand: left">
            <a-entity wrist-os position="0.1 0.1 0.1" rotation="-90 0 0">
               <a-plane width="0.32" height="0.48" material="src: #tablet-ui; color: #000">
                 <a-text value="ARCHITECT OS v1.5" position="0 0.2 0.01" align="center" width="0.6" color="cyan"></a-text>
                 
-                <!-- DIALOGUE / STATS TAB -->
                 <a-entity id="ui-dialogue-group">
                    <a-text id="tablet-msg" value="NO UNIT LINKED" position="0 0.1 0.01" align="center" width="0.35"></a-text>
                    <a-entity mixin="btn" position="0 -0.02 0.01" text="value: INITIALIZE UNIT" class="interactable"
@@ -126,14 +139,13 @@
                              onclick="window.ArchitectOS.speak(DIALOGUE_TREE['strength'].text, 0.6);"></a-entity>
                 </a-entity>
 
-                <!-- SYSTEM TAB -->
-                <a-entity mixin="btn" position="0 -0.4 0.1" scale="0.5 0.5 1" text="value: LOAD ARRAY" class="interactable"
+                <a-entity mixin="btn" position="0 -0.25 0.01" text="value: LOAD ARRAY" class="interactable"
                           onclick="document.querySelector('#construct-node').components['construct-engine'].spawnArray();"></a-entity>
               </a-plane>
            </a-entity>
         </a-entity>
 
-        <!-- RIGHT HAND: THE MANIPULATOR -->
+        <!-- RIGHT HAND -->
         <a-entity id="rightHand" oculus-touch-controls="hand: right"
                   raycaster="objects: .interactable; showLine: true" line="color: cyan"
                   sphere-collider="objects: .grabbable" super-hands>
@@ -142,11 +154,11 @@
 
       <!-- THE HUB (LAB) -->
       <a-entity id="construct-node" construct-engine>
-        <!-- THE TARGET HOST -->
-        <a-entity id="Host_Unit_01" host-logic position="0 0 -2.5" 
-                  geometry="primitive: capsule" material="color: #222; metalness: 0.5"
+        <!-- Swapped Capsule for Cylinder to fix "Unknown Geometry" error -->
+        <a-entity id="Host_Unit_01" host-logic position="0 0.75 -2.5" 
+                  geometry="primitive: cylinder; radius: 0.25; height: 1.5" material="color: #222; metalness: 0.5"
                   animation="property: rotation; to: 0 360 0; loop: true; dur: 20000; easing: linear">
-            <a-text value="UNIT_01" position="0 1.2 0" align="center" width="2"></a-text>
+            <a-text value="UNIT_01" position="0 1 0" align="center" width="2"></a-text>
         </a-entity>
 
         <!-- PLATFORM -->
