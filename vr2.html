@@ -1,92 +1,161 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <title>My Quest 2 VR World</title>
-    <!-- A-Frame Library -->
-    <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
-    <!-- Environment Component for easy scenery -->
+    <title>Architect OS: Unified Alpha</title>
+    <!-- Core VR Frameworks -->
+    <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/donmccurdy/aframe-extras@v7.2.0/dist/aframe-extras.min.js"></script>
     <script src="https://unpkg.com/aframe-environment-component@1.3.2/dist/aframe-environment-component.min.js"></script>
-    
+    <script src="https://cdn.jsdelivr.net/gh/c-frame/aframe-super-hands-component@v3.0.4/dist/aframe-super-hands.min.js"></script>
+
     <script>
-      // Component for NPC Dialogue
-      AFRAME.registerComponent('npc-dialogue', {
-        schema: {
-          messages: {type: 'array', default: ["Hello!", "Nice weather today.", "Good luck on your quest!"]},
-          name: {type: 'string', default: "NPC"}
+      // --- ARCHITECT OS: CENTRAL INTELLIGENCE ---
+      window.ArchitectOS = {
+        state: {
+          activeHost: null,
+          isConstructActive: false,
+          currentDialogueNode: "boot",
+          stats: { aggression: 0.5, empathy: 0.5 }
         },
+
+        // TTS Gateway
+        speak: function(text, pitch = 1.0) {
+          if ('speechSynthesis' in window) {
+            const utter = new SpeechSynthesisUtterance(text);
+            utter.pitch = pitch;
+            utter.rate = 0.9;
+            window.speechSynthesis.cancel();
+            window.speechSynthesis.speak(utter);
+          }
+          document.querySelector('#hud-text').setAttribute('value', text);
+        },
+
+        // Persistence Hook
+        saveState: function() {
+          const data = JSON.stringify(this.state.stats);
+          localStorage.setItem('architect_save', data);
+          this.speak("System state committed to local memory.");
+        }
+      };
+
+      // --- COMPONENT: WRIST GAUNTLET UI ---
+      AFRAME.registerComponent('wrist-os', {
         init: function () {
-          this.index = 0;
-          this.textEl = this.el.querySelector('.dialogue-text');
-          
-          // When the player clicks/triggers the NPC
+          this.el.setAttribute('visible', false);
+          this.camera = document.querySelector('#camera');
+        },
+        tick: function () {
+          const rot = this.el.object3D.rotation;
+          const isFacing = Math.abs(rot.z) > 1.2; // Detect wrist flip
+          this.el.setAttribute('visible', isFacing);
+        }
+      });
+
+      // --- COMPONENT: HOST BRAIN & INITIALIZATION ---
+      const DIALOGUE_TREE = {
+        "boot": {
+          text: "System Online. Memory flush complete. Awaiting drive assignment.",
+          options: [
+            {label: "[EMPATHY] See the beauty.", next: "beauty", stats: {a: 0.1, e: 0.9}},
+            {label: "[STRENGTH] Survive at all costs.", next: "strength", stats: {a: 0.9, e: 0.1}}
+          ]
+        },
+        "beauty": { text: "The world is a gift. I shall protect the valley.", options: [] },
+        "strength": { text: "This world is a game. I intend to win.", options: [] }
+      };
+
+      AFRAME.registerComponent('host-logic', {
+        init: function () {
+          this.el.classList.add('interactable');
           this.el.addEventListener('click', () => {
-            this.index = (this.index + 1) % this.data.messages.length;
-            this.textEl.setAttribute('value', this.data.messages[this.index]);
-            // Visual feedback: small bounce
-            this.el.setAttribute('animation', 'property: position; dir: alternate; dur: 100; iterations: 2; to: ' + 
-                                   this.el.object3D.position.x + ' ' + (this.el.object3D.position.y + 0.1) + ' ' + this.el.object3D.position.z);
+            window.ArchitectOS.state.activeHost = this.el;
+            window.ArchitectOS.speak("Unit Linked. Initializing Diagnostic.");
           });
         }
       });
 
-      // Component for basic object interaction
-      AFRAME.registerComponent('interact-color', {
-        init: function () {
-          this.el.addEventListener('click', () => {
-            const randomColor = '#' + Math.floor(Math.random()*16777215).toString(16);
-            this.el.setAttribute('color', randomColor);
-          });
+      // --- COMPONENT: CONSTRUCT LOADER ---
+      AFRAME.registerComponent('construct-engine', {
+        spawnArray: function() {
+          for (let i = 0; i < 6; i++) {
+            const item = document.createElement('a-box');
+            item.setAttribute('position', `1.5 1.2 -20`);
+            item.setAttribute('class', 'grabbable interactable');
+            item.setAttribute('material', 'color: #333; metalness: 0.8');
+            item.setAttribute('animation', {
+              property: 'position', to: `1.5 1.2 ${-i * 1.5}`, dur: 1500, delay: i * 200, easing: 'easeOutExpo'
+            });
+            this.el.appendChild(item);
+          }
+          window.ArchitectOS.speak("Asset arrays loaded.");
         }
       });
     </script>
   </head>
+
   <body>
-    <a-scene cursor="rayOrigin: mouse" raycaster="objects: .interactable">
-      
-      <!-- Assets -->
+    <a-scene physics="debug: false">
       <a-assets>
-        <!-- You can link 3D models here later -->
+        <img id="tablet-ui" src="https://i.imgur.com/8AD6D1O.png">
+        <a-mixin id="btn" geometry="primitive: plane; width: 0.26; height: 0.06" material="color: #111; opacity: 0.9" text="align: center; width: 0.5; color: #0FF"></a-mixin>
       </a-assets>
 
-      <!-- Environment -->
-      <a-entity environment="preset: forest; dressingAmount: 500"></a-entity>
+      <!-- THE CONSTRUCT (WHITE ROOM) -->
+      <a-entity id="env" environment="preset: none; backgroundColor: #ffffff; grid: cross; gridColor: #333"></a-entity>
 
-      <!-- Player / Camera Rig -->
-      <a-entity id="rig" position="0 0 4">
-        <a-camera>
-          <!-- Backup cursor for desktop testing -->
-          <a-cursor fuse="false" raycaster="objects: .interactable" color="white"></a-cursor>
-        </a-camera>
-        <!-- Quest 2 Controllers -->
-        <a-entity oculus-touch-controls="hand: left"></a-entity>
-        <a-entity oculus-touch-controls="hand: right" raycaster="objects: .interactable; far: 10; showLine: true" line="color: red; opacity: 0.5"></a-entity>
+      <!-- PLAYER RIG -->
+      <a-entity id="rig" movement-controls="speed: 0.15">
+        <a-entity id="camera" camera position="0 1.6 0" look-controls>
+          <a-text id="hud-text" value="ARCHITECT CONNECTED" position="0 -0.5 -1.2" align="center" width="1.5" color="cyan" font="monoid"></a-text>
+        </a-entity>
+
+        <!-- LEFT HAND: THE GAUNTLET -->
+        <a-entity id="leftHand" oculus-touch-controls="hand: left">
+           <a-entity wrist-os position="0.1 0.1 0.1" rotation="-90 0 0">
+              <a-plane width="0.32" height="0.48" material="src: #tablet-ui; color: #000">
+                <a-text value="ARCHITECT OS v1.5" position="0 0.2 0.01" align="center" width="0.6" color="cyan"></a-text>
+                
+                <!-- DIALOGUE / STATS TAB -->
+                <a-entity id="ui-dialogue-group">
+                   <a-text id="tablet-msg" value="NO UNIT LINKED" position="0 0.1 0.01" align="center" width="0.35"></a-text>
+                   <a-entity mixin="btn" position="0 -0.02 0.01" text="value: INITIALIZE UNIT" class="interactable"
+                             onclick="const node = DIALOGUE_TREE['boot']; window.ArchitectOS.speak(node.text); document.querySelector('#tablet-msg').setAttribute('value', node.text);"></a-entity>
+                   <a-entity mixin="btn" position="0 -0.1 0.01" text="value: APPLY BEAUTY" class="interactable"
+                             onclick="window.ArchitectOS.speak(DIALOGUE_TREE['beauty'].text, 1.2);"></a-entity>
+                   <a-entity mixin="btn" position="0 -0.18 0.01" text="value: APPLY STRENGTH" class="interactable"
+                             onclick="window.ArchitectOS.speak(DIALOGUE_TREE['strength'].text, 0.6);"></a-entity>
+                </a-entity>
+
+                <!-- SYSTEM TAB -->
+                <a-entity mixin="btn" position="0 -0.4 0.1" scale="0.5 0.5 1" text="value: LOAD ARRAY" class="interactable"
+                          onclick="document.querySelector('#construct-node').components['construct-engine'].spawnArray();"></a-entity>
+              </a-plane>
+           </a-entity>
+        </a-entity>
+
+        <!-- RIGHT HAND: THE MANIPULATOR -->
+        <a-entity id="rightHand" oculus-touch-controls="hand: right"
+                  raycaster="objects: .interactable; showLine: true" line="color: cyan"
+                  sphere-collider="objects: .grabbable" super-hands>
+        </a-entity>
       </a-entity>
 
-      <!-- NPC 1: The Guide -->
-      <a-entity class="interactable" npc-dialogue="name: Guide; messages: Welcome traveler!, I am the Forest Guide., Click me to see more text., GitHub is great for hosting VR!, See that cube? Give it a click." 
-                position="-2 1 -2" geometry="primitive: cylinder" material="color: #4CC3D9">
-        <a-text value="The Guide" position="0 1.5 0" align="center" width="4"></a-text>
-        <a-text class="dialogue-text" value="Click me!" position="0 1.2 0" align="center" width="3" color="#FFF"></a-text>
-        <a-entity geometry="primitive: sphere" position="0 1 0" material="color: #FFC65D"></a-entity> <!-- Head -->
+      <!-- THE HUB (LAB) -->
+      <a-entity id="construct-node" construct-engine>
+        <!-- THE TARGET HOST -->
+        <a-entity id="Host_Unit_01" host-logic position="0 0 -2.5" 
+                  geometry="primitive: capsule" material="color: #222; metalness: 0.5"
+                  animation="property: rotation; to: 0 360 0; loop: true; dur: 20000; easing: linear">
+            <a-text value="UNIT_01" position="0 1.2 0" align="center" width="2"></a-text>
+        </a-entity>
+
+        <!-- PLATFORM -->
+        <a-cylinder position="0 0 -2.5" radius="1" height="0.1" color="#111"></a-cylinder>
       </a-entity>
 
-      <!-- NPC 2: The Grumpy Robot -->
-      <a-entity class="interactable" npc-dialogue="name: Bot; messages: ERROR 404., Go away., I'm busy standing here., Fine... have a nice day." 
-                position="2 0.75 -2" geometry="primitive: box" material="color: #7BC8A4">
-        <a-text value="Robot" position="0 1 0" align="center" width="4"></a-text>
-        <a-text class="dialogue-text" value="Zzzzt..." position="0 0.7 0" align="center" width="3" color="#FF0000"></a-text>
-      </a-entity>
-
-      <!-- Interactive Object 1: Color Changing Cube -->
-      <a-box class="interactable" interact-color position="-1 0.5 1" rotation="0 45 0" color="#4CC3D9" shadow>
-        <a-text value="Click to change color" position="0 0.6 0" align="center" width="2"></a-text>
-      </a-box>
-
-      <!-- Interactive Object 2: Spinning Sphere -->
-      <a-sphere class="interactable" position="1 1 1" radius="0.5" color="#EF2D5E" shadow
-                animation="property: rotation; to: 0 360 0; loop: true; dur: 3000">
-        <a-text value="Spinning" position="0 0.7 0" align="center" width="2"></a-text>
-      </a-sphere>
+      <!-- LIGHTING -->
+      <a-entity light="type: ambient; intensity: 0.4"></a-entity>
+      <a-entity light="type: point; intensity: 0.8; distance: 10" position="0 3 -2"></a-entity>
 
     </a-scene>
   </body>
