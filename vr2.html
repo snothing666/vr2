@@ -1,11 +1,10 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <title>Architect OS: Alpha 2.4 - Full Body</title>
+    <title>Architect OS: Alpha 2.5</title>
     <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/gh/donmccurdy/aframe-extras@v7.2.0/dist/aframe-extras.min.js"></script>
     <script src="https://cdn.jsdelivr.net/gh/c-frame/aframe-physics-system@v4.2.2/dist/aframe-physics-system.min.js"></script>
-    <script src="https://unpkg.com/aframe-aabb-collider-component@3.2.2/dist/aframe-aabb-collider-component.min.js"></script>
     <script src="https://cdn.jsdelivr.net/gh/c-frame/aframe-super-hands-component@v3.0.4/dist/aframe-super-hands.min.js"></script>
 
     <script>
@@ -19,57 +18,151 @@
             window.speechSynthesis.cancel();
             window.speechSynthesis.speak(utter);
           }
-          document.querySelector('#hud-subtitle').setAttribute('value', text);
+          const hud = document.querySelector('#hud-subtitle');
+          if (hud) hud.setAttribute('value', text);
         },
         spawn: function(type) {
           const scene = document.querySelector('a-scene');
-          const newEl = document.createElement('a-entity');
           const cam = document.querySelector('#camera');
+          if (!cam) return;
           const pos = new THREE.Vector3(0, 0, -2);
           cam.object3D.localToWorld(pos);
+          
+          const newEl = document.createElement('a-entity');
           newEl.setAttribute('position', {x: pos.x, y: 0.1, z: pos.z});
-
+          
           if (type === 'host') {
             newEl.setAttribute('geometry', 'primitive: cylinder; radius: 0.25; height: 1.7');
             newEl.setAttribute('material', 'color: #222; metalness: 0.8');
             newEl.setAttribute('static-body', '');
             newEl.setAttribute('host-behavior', '');
-            this.speak("Host Unit Manifested.");
-          } else if (type === 'chair') {
+          } else {
             newEl.setAttribute('geometry', 'primitive: box; width: 0.5; height: 0.5; depth: 0.5');
             newEl.setAttribute('material', 'color: #111');
             newEl.setAttribute('static-body', '');
-            this.speak("Furniture Manifested.");
           }
           scene.appendChild(newEl);
         }
       };
 
-      // --- COMPONENT: PLAYER BODY LOGIC ---
-      AFRAME.registerComponent('player-body', {
+      // --- COMPONENT: STABLE BODY & ARMS ---
+      AFRAME.registerComponent('body-manager', {
+        init: function () {
+          this.cam = document.querySelector('#camera');
+          this.torso = document.querySelector('#torso');
+          this.leftHand = document.querySelector('#leftHand');
+          this.rightHand = document.querySelector('#rightHand');
+          this.lArm = document.querySelector('#leftArm');
+          this.rArm = document.querySelector('#rightArm');
+        },
         tick: function () {
-          const cam = document.querySelector('#camera').object3D;
-          const torso = document.querySelector('#torso').object3D;
+          if (!this.cam || !this.torso || !this.lArm || !this.rArm) return;
+
+          // 1. Position Torso under Camera
+          const camPos = this.cam.object3D.position;
+          const camRot = this.cam.object3D.rotation;
+          this.torso.object3D.position.set(camPos.x, camPos.y - 0.6, camPos.z);
+          this.torso.object3D.rotation.y = camRot.y;
+
+          // 2. Update Arms
+          this.updateArm(this.lArm, this.leftHand, -0.2);
+          this.updateArm(this.rArm, this.rightHand, 0.2);
+        },
+        updateArm: function(armEl, handEl, sideOffset) {
+          if (!handEl || !armEl) return;
           
-          // Keep torso under head
-          torso.position.set(cam.position.x, cam.position.y - 0.5, cam.position.z);
+          const shoulderPos = new THREE.Vector3(sideOffset, 0.3, -0.1);
+          this.torso.object3D.localToWorld(shoulderPos);
           
-          // Rotate torso slightly with head, but lag it for realism
-          const camYaw = cam.rotation.y;
-          torso.rotation.y = camYaw;
+          const handPos = handEl.object3D.position;
+          const dist = shoulderPos.distanceTo(handPos);
+          
+          armEl.object3D.position.copy(shoulderPos);
+          armEl.object3D.lookAt(handPos);
+          
+          // Use scale instead of geometry height to prevent engine crashes
+          armEl.object3D.scale.set(1, 1, dist);
+          armEl.object3D.translateZ(dist / 2);
         }
       });
 
-      // --- COMPONENT: ARM VECTORING ---
-      AFRAME.registerComponent('arm-follow', {
-        schema: { hand: {type: 'string'} },
+      AFRAME.registerComponent('host-behavior', {
         tick: function () {
-          const hand = document.querySelector(this.data.hand).object3D;
-          const shoulder = new THREE.Vector3(this.data.hand === '#leftHand' ? -0.2 : 0.2, 0.4, -0.1);
-          const torso = document.querySelector('#torso').object3D;
+          if (window.ArchitectOS.state.isFrozen) return;
+          const pos = this.el.object3D.position;
+          if (!this.dir) this.dir = 1;
+          pos.z += this.dir * 0.008;
+          if (pos.z < -7 || pos.z > -2) { this.dir *= -1; this.el.object3D.rotateY(Math.PI); }
+        }
+      });
+
+      window.addEventListener('keydown', (e) => {
+        if (e.key.toLowerCase() === 'm') {
+          const pov = document.querySelector('#pov-overlay');
+          if (pov) pov.setAttribute('visible', !pov.getAttribute('visible'));
+        }
+      });
+    </script>
+  </head>
+
+  <body>
+    <a-scene physics="debug: false; gravity: -9.8" renderer="colorManagement: true;">
+      
+      <a-assets>
+        <img id="ui-grid" src="https://i.imgur.com/8AD6D1O.png" crossorigin="anonymous">
+        <a-mixin id="btn" geometry="primitive: plane; width: 0.4; height: 0.08" material="color: #000" text="align: center; width: 0.5; color: #0FF"></a-mixin>
+      </a-assets>
+
+      <a-sky color="#050505"></a-sky>
+      <a-plane static-body rotation="-90 0 0" width="50" height="50" color="#080808"></a-plane>
+      <a-entity light="type: ambient; intensity: 0.5"></a-entity>
+      <a-entity light="type: hemisphere; intensity: 0.4; groundColor: #111; color: #fff"></a-entity>
+
+      <!-- PLAYER RIG -->
+      <a-entity id="rig" movement-controls="speed: 0.1" kinematic-body body-manager>
+        <a-entity id="camera" camera position="0 1.7 0" look-controls>
+          <a-text id="hud-subtitle" value="SYSTEM ONLINE" position="0 -0.4 -1" align="center" width="1.5" color="cyan" font="monoid"></a-text>
           
-          // Get shoulder world position
-          torso.localToWorld(shoulder);
-          
-          // Point arm from shoulder to hand
-          this.el.object3D.position.copy(shoulder);
+          <!-- POV TABLET -->
+          <a-entity id="pov-overlay" visible="false" position="0 0 -0.6">
+             <a-plane width="0.7" height="0.8" material="src: #ui-grid; color: #000; opacity: 0.95">
+                <a-text value="ARCHITECT SPAWNER" position="0 0.35 0.01" align="center" width="0.8" color="cyan"></a-text>
+                <a-entity mixin="btn" position="0 0.15 0.01" class="interactable" onclick="window.ArchitectOS.spawn('host')" text="value: MANIFEST UNIT"></a-entity>
+                <a-entity mixin="btn" position="0 0.05 0.01" class="interactable" onclick="window.ArchitectOS.spawn('chair')" text="value: MANIFEST CHAIR"></a-entity>
+                <a-entity mixin="btn" position="0 -0.05 0.01" class="interactable" onclick="window.ArchitectOS.state.isFrozen = !window.ArchitectOS.state.isFrozen" text="value: TOGGLE FREEZE"></a-entity>
+                <a-text value="PRESS 'M' TO CLOSE" position="0 -0.3 0.01" align="center" width="0.4" color="gray"></a-text>
+             </a-plane>
+          </a-entity>
+        </a-entity>
+
+        <!-- PLAYER BODY -->
+        <a-cylinder id="torso" radius="0.15" height="0.7" color="#111"></a-cylinder>
+
+        <!-- HANDS & ARMS -->
+        <a-entity id="leftHand" hand-controls="hand: left" sphere-collider="objects: .grabbable" super-hands></a-entity>
+        <a-entity id="leftArm" geometry="primitive: box; width: 0.05; height: 0.05; depth: 1" material="color: #111"></a-entity>
+
+        <a-entity id="rightHand" hand-controls="hand: right" 
+                  raycaster="objects: .interactable; showLine: true; direction: 0 0 -1" 
+                  line="color: #00ffff" sphere-collider="objects: .grabbable" super-hands></a-entity>
+        <a-entity id="rightArm" geometry="primitive: box; width: 0.05; height: 0.05; depth: 1" material="color: #111"></a-entity>
+      </a-entity>
+
+      <!-- SCENE OBJECTS -->
+      <a-entity id="trolley" static-body position="-1.5 0 -3" rotation="0 40 0">
+          <a-box position="0 0.45 0" width="0.8" height="0.9" depth="0.5" color="#222"></a-box>
+          <a-box static-body position="0 0.95 0" width="0.85" height="0.05" depth="0.55" color="#444">
+              <a-sphere class="grabbable interactable" hoverable grabbable dynamic-body position="-0.1 0.2 0" radius="0.08" color="red"></a-sphere>
+              <a-cylinder class="grabbable interactable" hoverable grabbable dynamic-body position="0.1 0.2 0" radius="0.05" height="0.15" color="#aaa"></a-cylinder>
+          </a-box>
+      </a-entity>
+
+      <a-entity id="host-unit" host-behavior static-body position="0 0.85 -5" 
+                geometry="primitive: cylinder; radius: 0.25; height: 1.7" 
+                material="color: #111; metalness: 0.8">
+          <a-text value="UNIT_704" position="0 1.1 0" align="center" width="2" color="cyan"></a-text>
+      </a-entity>
+
+    </a-scene>
+  </body>
+</html>
